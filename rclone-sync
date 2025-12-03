@@ -73,13 +73,15 @@ mkdir -p "$WORKDIR"
 
 echo "Watcher started for $LOCAL_DIR at $(date)"
 
-# Initial sync
+# Initial sync (must complete before starting background loops)
 if [ ! -f "$PATH1_LST" ] || [ ! -f "$PATH2_LST" ] || ! $DIR_EXISTED; then
     echo "First time detected. Running resync preferring remote."
     run_bisync $RCLONE_FLAGS --resync --resync-mode path1
 else
     run_bisync $RCLONE_FLAGS
 fi
+
+echo "Initial sync complete. Starting background monitoring at $(date)"
 
 (while true; do
     sleep $REMOTE_POLL_PERIOD
