@@ -46,6 +46,7 @@ SAFE_REMOTE=$(echo "$REMOTE_PATH" | sed 's|/|_|g; s|:|_|g')
 SAFE_LOCAL=$(echo "$LOCAL_DIR" | sed 's|^/||; s|/|_|g')
 PATH1_LST="$WORKDIR/$SAFE_REMOTE..$SAFE_LOCAL.path1.lst"
 PATH2_LST="$WORKDIR/$SAFE_REMOTE..$SAFE_LOCAL.path2.lst"
+LOCKFILE="/tmp/rclone_bisync_lockfile_${SAFE_REMOTE}_${SAFE_LOCAL}"
 
 # Function to run bisync
 run_bisync() {
@@ -86,7 +87,7 @@ fi
         flock -n 99 || exit 1
 	echo "Remote change detected. Running rclone bisync at $(date)"
         run_bisync $RCLONE_FLAGS
-    ) 99>/tmp/rclone_bisync_lockfile
+    ) 99>"$LOCKFILE"
 done) &
 remote_sync_pid=$!
 trap "echo 'Killing remote sync process'; kill $remote_sync_pid" SIGINT SIGTERM
@@ -103,6 +104,6 @@ inotifywait -m -r -q -e modify,create,delete,move --format '%w%f' "$LOCAL_DIR" |
         flock -n 99 || exit 1
 	echo "Local change detected. Running rclone bisync at $(date)"
         run_bisync $RCLONE_FLAGS
-    ) 99>/tmp/rclone_bisync_lockfile
+    ) 99>"$LOCKFILE"
 done
 
