@@ -15,18 +15,22 @@ mkdir -p "$CONFIG_DIR"
 
 # Download scripts to ~/.local/bin
 echo "Downloading scripts..."
+curl -fsSL "$BASE_URL/rclone-sync-common.sh" -o "$BIN_DIR/rclone-sync-common.sh"
 curl -fsSL "$BASE_URL/rclone-sync" -o "$BIN_DIR/rclone-sync"
 curl -fsSL "$BASE_URL/rclone-sync-update" -o "$BIN_DIR/rclone-sync-update"
 curl -fsSL "$BASE_URL/rclone-sync-add" -o "$BIN_DIR/rclone-sync-add"
 curl -fsSL "$BASE_URL/rclone-sync-delete" -o "$BIN_DIR/rclone-sync-delete"
 curl -fsSL "$BASE_URL/rclone-sync-prune" -o "$BIN_DIR/rclone-sync-prune"
+curl -fsSL "$BASE_URL/rclone-sync-conflicts" -o "$BIN_DIR/rclone-sync-conflicts"
 
 # Make executable
+chmod +x "$BIN_DIR/rclone-sync-common.sh"
 chmod +x "$BIN_DIR/rclone-sync"
 chmod +x "$BIN_DIR/rclone-sync-update"
 chmod +x "$BIN_DIR/rclone-sync-add"
 chmod +x "$BIN_DIR/rclone-sync-delete"
 chmod +x "$BIN_DIR/rclone-sync-prune"
+chmod +x "$BIN_DIR/rclone-sync-conflicts"
 
 # Download systemd service
 echo "Downloading systemd service..."
@@ -45,4 +49,5 @@ echo "Usage:"
 echo "  rclone-sync-add <name> <remote:path> <local-path>  # Add a sync"
 echo "  rclone-sync-delete <name>                          # Remove a sync"
 echo "  rclone-sync-prune                                  # Remove all syncs"
+echo "  rclone-sync-conflicts [name]                       # Show sync conflicts"
 echo "  rclone-sync-update                                 # Update scripts"

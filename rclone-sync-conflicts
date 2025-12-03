@@ -1,0 +1,178 @@
+#!/bin/bash
+set -e
+
+# Source common library
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/rclone-sync-common.sh"
+
+usage() {
+    echo "Usage: $0 [instance-name]"
+    echo ""
+    echo "Shows conflicts from the most recent sync error."
+    echo ""
+    echo "If no instance name is provided, shows conflicts from all instances."
+    echo ""
+    echo "Example: $0 documents"
+    exit 1
+}
+
+# Function to parse lst file format and extract file info
+parse_lst_line() {
+    local line="$1"
+    # Skip comments and empty lines
+    [[ "$line" =~ ^# ]] && return 1
+    [[ -z "$line" ]] && return 1
+
+    # Format: <type> <size> <hash> <hashtype> <modtime> "<path>"
+    # Extract path (quoted string at end)
+    if [[ "$line" =~ \"([^\"]+)\"$ ]]; then
+        echo "${BASH_REMATCH[1]}"
+        return 0
+    fi
+    return 1
+}
+
+# Function to get file details from lst line
+get_file_details() {
+    local line="$1"
+    # Extract: type, size, modtime
+    local type=$(echo "$line" | awk '{print $1}')
+    local size=$(echo "$line" | awk '{print $2}')
+    local modtime=$(echo "$line" | awk '{print $5}')
+    echo "$type|$size|$modtime"
+}
+
+# Function to show conflicts for a single instance
+show_conflicts() {
+    local pattern="$1"
+    local instance_name="$2"
+
+    local path1_err="${CACHE_DIR}/${pattern}.path1.lst-err"
+    local path2_err="${CACHE_DIR}/${pattern}.path2.lst-err"
+
+    if [ ! -f "$path1_err" ] || [ ! -f "$path2_err" ]; then
+        return 1
+    fi
+
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    if [ -n "$instance_name" ]; then
+        echo "Instance: $instance_name"
+    fi
+
+    # Get timestamps
+    local path1_time=$(head -1 "$path1_err" | grep -oP '\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}')
+    local path2_time=$(head -1 "$path2_err" | grep -oP '\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}')
+
+    echo "Error detected:"
+    echo "  Remote (path1): $path1_time"
+    echo "  Local  (path2): $path2_time"
+    echo ""
+
+    # Create temporary files with parsed data
+    local tmp1=$(mktemp)
+    local tmp2=$(mktemp)
+
+    # Parse path1 (remote) file list
+    while IFS= read -r line; do
+        filepath=$(parse_lst_line "$line") || continue
+        details=$(get_file_details "$line")
+        echo "$filepath|$details" >> "$tmp1"
+    done < "$path1_err"
+
+    # Parse path2 (local) file list
+    while IFS= read -r line; do
+        filepath=$(parse_lst_line "$line") || continue
+        details=$(get_file_details "$line")
+        echo "$filepath|$details" >> "$tmp2"
+    done < "$path2_err"
+
+    # Find conflicts (files that exist in both but with different details)
+    local found_conflicts=0
+
+    while IFS='|' read -r filepath type1 size1 modtime1; do
+        # Check if file exists in path2
+        local match=$(grep "^${filepath}|" "$tmp2" || true)
+
+        if [ -n "$match" ]; then
+            IFS='|' read -r _ type2 size2 modtime2 <<< "$match"
+
+            # Compare details (skip directories)
+            if [ "$type1" != "d" ] && [ "$type2" != "d" ]; then
+                if [ "$size1" != "$size2" ] || [ "$modtime1" != "$modtime2" ]; then
+                    if [ $found_conflicts -eq 0 ]; then
+                        echo "CONFLICTS DETECTED:"
+                        echo ""
+                        found_conflicts=1
+                    fi
+
+                    echo "  File: $filepath"
+                    echo "    Remote: size=$size1 bytes, modified=$modtime1"
+                    echo "    Local:  size=$size2 bytes, modified=$modtime2"
+                    echo ""
+                fi
+            fi
+        fi
+    done < "$tmp1"
+
+    if [ $found_conflicts -eq 0 ]; then
+        echo "No conflicts detected in error files."
+        echo "(Error may have been caused by other issues)"
+    fi
+
+    # Cleanup
+    rm -f "$tmp1" "$tmp2"
+
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+
+    return 0
+}
+
+# Main logic
+if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
+    usage
+fi
+
+if [ -n "$1" ]; then
+    # Specific instance requested
+    INSTANCE="$1"
+
+    # Load config to determine paths
+    if ! load_instance_config "$INSTANCE"; then
+        exit 1
+    fi
+
+    # Generate pattern using base64 encoding
+    encode_paths "$REMOTE_PATH" "$LOCAL_DIR"
+
+    if ! show_conflicts "$PATTERN" "$INSTANCE"; then
+        echo "No error files found for instance '$INSTANCE'."
+        exit 0
+    fi
+else
+    # Show conflicts for all instances
+    if [ ! -d "$CONFIG_DIR" ] || [ -z "$(ls -A "$CONFIG_DIR" 2>/dev/null)" ]; then
+        echo "No rclone-sync instances found."
+        exit 0
+    fi
+
+    found_any=0
+
+    for conf in "$CONFIG_DIR"/*.conf; do
+        [ -f "$conf" ] || continue
+
+        INSTANCE=$(basename "$conf" .conf)
+        source "$conf"
+
+        # Generate pattern using base64 encoding
+        encode_paths "$REMOTE_PATH" "$LOCAL_DIR"
+
+        if show_conflicts "$PATTERN" "$INSTANCE"; then
+            found_any=1
+        fi
+    done
+
+    if [ $found_any -eq 0 ]; then
+        echo "No error files found for any instance."
+    fi
+fi
