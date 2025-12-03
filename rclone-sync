@@ -48,8 +48,9 @@ RCLONE_FLAGS="--compare size,modtime,checksum
 	--verbose"
 
 WORKDIR="$HOME/.cache/rclone/bisync"
-SAFE_REMOTE=$(echo "$REMOTE_PATH" | sed 's|/|_|g; s|:|_|g')
-SAFE_LOCAL=$(echo "$LOCAL_DIR" | sed 's|^/||; s|/|_|g')
+# Use base64 encoding to prevent path collisions (e.g., "foo/bar" vs "foo_bar")
+SAFE_REMOTE=$(echo -n "$REMOTE_PATH" | base64 -w0 | tr '+/' '-_' | tr -d '=')
+SAFE_LOCAL=$(echo -n "$LOCAL_DIR" | base64 -w0 | tr '+/' '-_' | tr -d '=')
 PATH1_LST="$WORKDIR/$SAFE_REMOTE..$SAFE_LOCAL.path1.lst"
 PATH2_LST="$WORKDIR/$SAFE_REMOTE..$SAFE_LOCAL.path2.lst"
 LOCKFILE="/tmp/rclone_bisync_lockfile_${SAFE_REMOTE}_${SAFE_LOCAL}"

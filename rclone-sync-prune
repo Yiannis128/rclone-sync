@@ -40,8 +40,8 @@ for conf in "$CONFIG_DIR"/*.conf; do
     # Load config and clean cache
     source "$conf"
     if [ -n "$REMOTE_PATH" ] && [ -n "$LOCAL_DIR" ]; then
-        SAFE_REMOTE=$(echo "$REMOTE_PATH" | sed 's|/|_|g; s|:|_|g')
-        SAFE_LOCAL=$(echo "$LOCAL_DIR" | sed 's|^/||; s|/|_|g')
+        SAFE_REMOTE=$(echo -n "$REMOTE_PATH" | base64 -w0 | tr '+/' '-_' | tr -d '=')
+        SAFE_LOCAL=$(echo -n "$LOCAL_DIR" | base64 -w0 | tr '+/' '-_' | tr -d '=')
         PATTERN="$SAFE_REMOTE..$SAFE_LOCAL"
         find "$CACHE_DIR" -name "${PATTERN}*" -delete 2>/dev/null || true
     fi
