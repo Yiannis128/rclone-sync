@@ -9,10 +9,14 @@ usage() {
     echo "Options:"
     echo "  -h, --help              Show this help message"
     echo "  --max-delete N          Abort if >N files would be deleted (default: 50, 0=disable)"
+    echo "  --verbose               Enable verbose output (default: disabled)"
+    echo "  --no-drive-trash        Disable Google Drive trash (permanently delete files)"
     exit 0
 }
 
 MAX_DELETE_THRESHOLD=50
+VERBOSE=""
+DRIVE_USE_TRASH="--drive-use-trash=true"
 
 while [[ $# -gt 0 && "$1" == -* ]]; do
     case "$1" in
@@ -20,6 +24,14 @@ while [[ $# -gt 0 && "$1" == -* ]]; do
         --max-delete)
             MAX_DELETE_THRESHOLD="$2"
             shift 2
+            ;;
+        --verbose)
+            VERBOSE="--verbose"
+            shift
+            ;;
+        --no-drive-trash)
+            DRIVE_USE_TRASH="--drive-use-trash=false"
+            shift
             ;;
         *) echo "Invalid option: $1" >&2; usage ;;
     esac
@@ -39,17 +51,18 @@ LOCAL_DIR="$2"
 # Safety: Abort if more than MAX_DELETE_THRESHOLD files would be deleted (protects against accidents/ransomware)
 RCLONE_FLAGS="--compare size,modtime,checksum
 	--max-delete $MAX_DELETE_THRESHOLD
-	--resilient 
-	--recover 
-	--transfers 4 
-	--retries 5 
-	--low-level-retries 10 
+	--resilient
+	--recover
+	--transfers 4
+	--retries 5
+	--low-level-retries 10
 	--create-empty-src-dirs
 	--conflict-resolve newer
 	--conflict-loser pathname
 	--check-first
 	--modify-window 1s
-	--verbose"
+	$DRIVE_USE_TRASH
+	$VERBOSE"
 
 WORKDIR="$CACHE_DIR"
 # Use base64 encoding to prevent path collisions (e.g., "foo/bar" vs "foo_bar")

@@ -8,20 +8,32 @@ source "$SCRIPT_DIR/rclone-sync-common.sh"
 usage() {
     echo "Usage: $0 [options] <instance-name> <remote-path> <local-dir>"
     echo "Options:"
-    echo "  --max-delete N    Abort if >N files would be deleted (default: 50, 0=disable)"
+    echo "  --max-delete N      Abort if >N files would be deleted (default: 50, 0=disable)"
+    echo "  --verbose           Enable verbose output (default: disabled)"
+    echo "  --no-drive-trash    Disable Google Drive trash (permanently delete files)"
     echo ""
     echo "Example: $0 documents gdrive:Documents ~/Documents"
-    echo "Example: $0 --max-delete 100 photos gdrive:Photos ~/Photos"
+    echo "Example: $0 --max-delete 100 --verbose --no-drive-trash photos gdrive:Photos ~/Photos"
     exit 1
 }
 
 MAX_DELETE=50
+VERBOSE=""
+DRIVE_USE_TRASH="--drive-use-trash=true"
 
 while [[ "$1" == --* ]]; do
     case "$1" in
         --max-delete)
             MAX_DELETE="$2"
             shift 2
+            ;;
+        --verbose)
+            VERBOSE="--verbose"
+            shift
+            ;;
+        --no-drive-trash)
+            DRIVE_USE_TRASH="--drive-use-trash=false"
+            shift
             ;;
         *) echo "Invalid option: $1" >&2; usage ;;
     esac
@@ -55,6 +67,8 @@ cat > "$CONFIG_FILE" <<EOF
 REMOTE_PATH="$REMOTE"
 LOCAL_DIR="$LOCAL"
 MAX_DELETE="$MAX_DELETE"
+VERBOSE="$VERBOSE"
+DRIVE_USE_TRASH="$DRIVE_USE_TRASH"
 EOF
 
 echo "Created config: $CONFIG_FILE"
