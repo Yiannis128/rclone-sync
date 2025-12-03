@@ -1,8 +1,9 @@
 #!/bin/bash
 set -e
 
-CONFIG_DIR="$HOME/.config/rclone-sync"
-CACHE_DIR="$HOME/.cache/rclone/bisync"
+# Source common library
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/rclone-sync-common.sh"
 
 # Check if any configs exist
 if [ ! -d "$CONFIG_DIR" ] || [ -z "$(ls -A "$CONFIG_DIR" 2>/dev/null)" ]; then
@@ -30,21 +31,15 @@ fi
 for conf in "$CONFIG_DIR"/*.conf; do
     [ -f "$conf" ] || continue
     INSTANCE=$(basename "$conf" .conf)
-    
+
     echo "Removing: $INSTANCE"
-    
+
     # Stop and disable service
-    systemctl --user stop "rclone-sync@$INSTANCE" 2>/dev/null || true
-    systemctl --user disable "rclone-sync@$INSTANCE" 2>/dev/null || true
-    
+    stop_service "$INSTANCE"
+
     # Load config and clean cache
     source "$conf"
-    if [ -n "$REMOTE_PATH" ] && [ -n "$LOCAL_DIR" ]; then
-        SAFE_REMOTE=$(echo -n "$REMOTE_PATH" | base64 -w0 | tr '+/' '-_' | tr -d '=')
-        SAFE_LOCAL=$(echo -n "$LOCAL_DIR" | base64 -w0 | tr '+/' '-_' | tr -d '=')
-        PATTERN="$SAFE_REMOTE..$SAFE_LOCAL"
-        find "$CACHE_DIR" -name "${PATTERN}*" -delete 2>/dev/null || true
-    fi
+    cleanup_cache_files "$REMOTE_PATH" "$LOCAL_DIR"
 done
 
 # Remove all configs

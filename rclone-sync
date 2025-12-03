@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Source common library
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/rclone-sync-common.sh"
+
 usage() {
     echo "Usage: $0 [options] REMOTE_PATH LOCAL_DIR"
     echo "Options:"
@@ -47,12 +51,11 @@ RCLONE_FLAGS="--compare size,modtime,checksum
 	--modify-window 1s
 	--verbose"
 
-WORKDIR="$HOME/.cache/rclone/bisync"
+WORKDIR="$CACHE_DIR"
 # Use base64 encoding to prevent path collisions (e.g., "foo/bar" vs "foo_bar")
-SAFE_REMOTE=$(echo -n "$REMOTE_PATH" | base64 -w0 | tr '+/' '-_' | tr -d '=')
-SAFE_LOCAL=$(echo -n "$LOCAL_DIR" | base64 -w0 | tr '+/' '-_' | tr -d '=')
-PATH1_LST="$WORKDIR/$SAFE_REMOTE..$SAFE_LOCAL.path1.lst"
-PATH2_LST="$WORKDIR/$SAFE_REMOTE..$SAFE_LOCAL.path2.lst"
+encode_paths "$REMOTE_PATH" "$LOCAL_DIR"
+PATH1_LST="$WORKDIR/$PATTERN.path1.lst"
+PATH2_LST="$WORKDIR/$PATTERN.path2.lst"
 LOCKFILE="/tmp/rclone_bisync_lockfile_${SAFE_REMOTE}_${SAFE_LOCAL}"
 
 # Function to run bisync
