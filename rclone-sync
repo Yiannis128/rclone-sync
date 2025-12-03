@@ -70,6 +70,7 @@ encode_paths "$REMOTE_PATH" "$LOCAL_DIR"
 PATH1_LST="$WORKDIR/$PATTERN.path1.lst"
 PATH2_LST="$WORKDIR/$PATTERN.path2.lst"
 LOCKFILE="/tmp/rclone_bisync_lockfile_${SAFE_REMOTE}_${SAFE_LOCAL}"
+RCLONE_LOCKFILE="$WORKDIR/$PATTERN.lck"
 
 # Function to run bisync
 run_bisync() {
@@ -123,8 +124,9 @@ cleanup() {
     pkill -TERM -P $$ rclone 2>/dev/null
     # Kill any remaining child processes
     pkill -P $$ 2>/dev/null
-    # Remove lockfile
+    # Remove lockfiles
     rm -f "$LOCKFILE"
+    rm -f "$RCLONE_LOCKFILE"
 }
 trap cleanup SIGINT SIGTERM EXIT
 
