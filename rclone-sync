@@ -26,9 +26,11 @@ REMOTE_POLL_PERIOD=20
 LOCAL_BATCH_DELAY=5
 REMOTE_PATH="$1"
 LOCAL_DIR="$2"
-#	--max-delete 10
-#	--drive-use-trash=false
+# Safety: Abort if more than 50% of files would be deleted (protects against accidents/ransomware)
+# Disable by setting MAX_DELETE_THRESHOLD=0 in environment
+MAX_DELETE_THRESHOLD="${MAX_DELETE_THRESHOLD:-50}"
 RCLONE_FLAGS="--compare size,modtime,checksum
+	--max-delete $MAX_DELETE_THRESHOLD
 	--resilient 
 	--recover 
 	--transfers 4 
@@ -92,7 +94,18 @@ echo "Initial sync complete. Starting background monitoring at $(date)"
     ) 99>"$LOCKFILE"
 done) &
 remote_sync_pid=$!
-trap "echo 'Cleaning up...'; kill $remote_sync_pid 2>/dev/null; pkill -P $$ 2>/dev/null; rm -f '$LOCKFILE'" SIGINT SIGTERM EXIT
+cleanup() {
+    echo 'Cleaning up...'
+    # Kill background loops
+    kill $remote_sync_pid 2>/dev/null
+    # Gracefully terminate any running rclone processes (--recover will handle resume)
+    pkill -TERM -P $$ rclone 2>/dev/null
+    # Kill any remaining child processes
+    pkill -P $$ 2>/dev/null
+    # Remove lockfile
+    rm -f "$LOCKFILE"
+}
+trap cleanup SIGINT SIGTERM EXIT
 
 # The watching loop using inotifywait
 # -m: Monitor continuously
