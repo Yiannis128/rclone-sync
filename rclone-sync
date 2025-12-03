@@ -85,7 +85,7 @@ fi
     sleep $REMOTE_POLL_PERIOD
     (
         flock -n 99 || exit 1
-	echo "Remote change detected. Running rclone bisync at $(date)"
+	echo "Polling for remote changes. Running rclone bisync at $(date)"
         run_bisync $RCLONE_FLAGS
     ) 99>"$LOCKFILE"
 done) &
