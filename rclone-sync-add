@@ -4,10 +4,26 @@ set -e
 CONFIG_DIR="$HOME/.config/rclone-sync"
 
 usage() {
-    echo "Usage: $0 <instance-name> <remote-path> <local-dir>"
+    echo "Usage: $0 [options] <instance-name> <remote-path> <local-dir>"
+    echo "Options:"
+    echo "  --max-delete N    Abort if >N files would be deleted (default: 50, 0=disable)"
+    echo ""
     echo "Example: $0 documents gdrive:Documents ~/Documents"
+    echo "Example: $0 --max-delete 100 photos gdrive:Photos ~/Photos"
     exit 1
 }
+
+MAX_DELETE=50
+
+while [[ "$1" == --* ]]; do
+    case "$1" in
+        --max-delete)
+            MAX_DELETE="$2"
+            shift 2
+            ;;
+        *) echo "Invalid option: $1" >&2; usage ;;
+    esac
+done
 
 if [ $# -ne 3 ]; then
     usage
@@ -36,6 +52,7 @@ mkdir -p "$CONFIG_DIR"
 cat > "$CONFIG_FILE" <<EOF
 REMOTE_PATH="$REMOTE"
 LOCAL_DIR="$LOCAL"
+MAX_DELETE="$MAX_DELETE"
 EOF
 
 echo "Created config: $CONFIG_FILE"

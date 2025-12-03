@@ -6,7 +6,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 EnvironmentFile=%h/.config/rclone-sync/%i.conf
-ExecStart=%h/.local/bin/rclone-sync "${REMOTE_PATH}" "${LOCAL_DIR}"
+ExecStart=%h/.local/bin/rclone-sync --max-delete "${MAX_DELETE}" "${REMOTE_PATH}" "${LOCAL_DIR}"
 Restart=on-failure
 RestartSec=10
 

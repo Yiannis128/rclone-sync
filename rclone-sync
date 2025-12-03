@@ -3,16 +3,22 @@
 usage() {
     echo "Usage: $0 [options] REMOTE_PATH LOCAL_DIR"
     echo "Options:"
-    echo "  -h, --help  Show this help message"
+    echo "  -h, --help              Show this help message"
+    echo "  --max-delete N          Abort if >N files would be deleted (default: 50, 0=disable)"
     exit 0
 }
 
-while [[ "$1" == -* ]]; do
+MAX_DELETE_THRESHOLD=50
+
+while [[ $# -gt 0 && "$1" == -* ]]; do
     case "$1" in
         -h|--help) usage ;;
+        --max-delete)
+            MAX_DELETE_THRESHOLD="$2"
+            shift 2
+            ;;
         *) echo "Invalid option: $1" >&2; usage ;;
     esac
-    shift
 done
 
 if [ $# -ne 2 ]; then
@@ -26,9 +32,7 @@ REMOTE_POLL_PERIOD=20
 LOCAL_BATCH_DELAY=5
 REMOTE_PATH="$1"
 LOCAL_DIR="$2"
-# Safety: Abort if more than 50% of files would be deleted (protects against accidents/ransomware)
-# Disable by setting MAX_DELETE_THRESHOLD=0 in environment
-MAX_DELETE_THRESHOLD="${MAX_DELETE_THRESHOLD:-50}"
+# Safety: Abort if more than MAX_DELETE_THRESHOLD files would be deleted (protects against accidents/ransomware)
 RCLONE_FLAGS="--compare size,modtime,checksum
 	--max-delete $MAX_DELETE_THRESHOLD
 	--resilient 
