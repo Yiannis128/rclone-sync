@@ -1,0 +1,48 @@
+#!/bin/bash
+set -e
+
+BASE_URL="https://raw.githubusercontent.com/Yiannis128/rclone-sync/refs/heads/master"
+BIN_DIR="$HOME/.local/bin"
+SYSTEMD_DIR="$HOME/.config/systemd/user"
+CONFIG_DIR="$HOME/.config/rclone-sync"
+
+echo "Installing/updating rclone-sync..."
+
+# Create directories
+mkdir -p "$BIN_DIR"
+mkdir -p "$SYSTEMD_DIR"
+mkdir -p "$CONFIG_DIR"
+
+# Download scripts to ~/.local/bin
+echo "Downloading scripts..."
+curl -fsSL "$BASE_URL/rclone-sync" -o "$BIN_DIR/rclone-sync"
+curl -fsSL "$BASE_URL/rclone-sync-update" -o "$BIN_DIR/rclone-sync-update"
+curl -fsSL "$BASE_URL/rclone-sync-add" -o "$BIN_DIR/rclone-sync-add"
+curl -fsSL "$BASE_URL/rclone-sync-delete" -o "$BIN_DIR/rclone-sync-delete"
+curl -fsSL "$BASE_URL/rclone-sync-prune" -o "$BIN_DIR/rclone-sync-prune"
+
+# Make executable
+chmod +x "$BIN_DIR/rclone-sync"
+chmod +x "$BIN_DIR/rclone-sync-update"
+chmod +x "$BIN_DIR/rclone-sync-add"
+chmod +x "$BIN_DIR/rclone-sync-delete"
+chmod +x "$BIN_DIR/rclone-sync-prune"
+
+# Download systemd service
+echo "Downloading systemd service..."
+curl -fsSL "$BASE_URL/rclone-sync@.service" -o "$SYSTEMD_DIR/rclone-sync@.service"
+
+# Reload systemd
+systemctl --user daemon-reload
+
+echo ""
+echo "Installation complete!"
+echo ""
+echo "Make sure ~/.local/bin is in your PATH:"
+echo "  export PATH=\"\$HOME/.local/bin:\$PATH\""
+echo ""
+echo "Usage:"
+echo "  rclone-sync-add <name> <remote:path> <local-path>  # Add a sync"
+echo "  rclone-sync-delete <name>                          # Remove a sync"
+echo "  rclone-sync-prune                                  # Remove all syncs"
+echo "  rclone-sync-update                                 # Update scripts"

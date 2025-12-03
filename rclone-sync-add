@@ -1,0 +1,50 @@
+#!/bin/bash
+set -e
+
+CONFIG_DIR="$HOME/.config/rclone-sync"
+
+usage() {
+    echo "Usage: $0 <instance-name> <remote-path> <local-dir>"
+    echo "Example: $0 documents gdrive:Documents ~/Documents"
+    exit 1
+}
+
+if [ $# -ne 3 ]; then
+    usage
+fi
+
+INSTANCE="$1"
+REMOTE="$2"
+LOCAL="$3"
+
+# Expand ~ in local path
+LOCAL="${LOCAL/#\~/$HOME}"
+
+CONFIG_FILE="$CONFIG_DIR/$INSTANCE.conf"
+
+# Check if already exists
+if [ -f "$CONFIG_FILE" ]; then
+    echo "Error: Instance '$INSTANCE' already exists."
+    echo "Use 'rclone-sync-delete $INSTANCE' first to remove it."
+    exit 1
+fi
+
+# Create config directory
+mkdir -p "$CONFIG_DIR"
+
+# Create config file
+cat > "$CONFIG_FILE" <<EOF
+REMOTE_PATH="$REMOTE"
+LOCAL_DIR="$LOCAL"
+EOF
+
+echo "Created config: $CONFIG_FILE"
+echo ""
+echo "Commands:"
+echo "  Start:   systemctl --user start rclone-sync@$INSTANCE"
+echo "  Enable:  systemctl --user enable rclone-sync@$INSTANCE"
+echo "  Status:  systemctl --user status rclone-sync@$INSTANCE"
+echo "  Logs:    journalctl --user -u rclone-sync@$INSTANCE -f"
+echo ""
+echo "To start and enable now:"
+echo "  systemctl --user enable --now rclone-sync@$INSTANCE"

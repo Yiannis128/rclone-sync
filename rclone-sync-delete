@@ -1,0 +1,49 @@
+#!/bin/bash
+set -e
+
+CONFIG_DIR="$HOME/.config/rclone-sync"
+CACHE_DIR="$HOME/.cache/rclone/bisync"
+
+usage() {
+    echo "Usage: $0 <instance-name>"
+    echo "Example: $0 documents"
+    exit 1
+}
+
+if [ $# -ne 1 ]; then
+    usage
+fi
+
+INSTANCE="$1"
+CONFIG_FILE="$CONFIG_DIR/$INSTANCE.conf"
+
+# Check if exists
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo "Error: Instance '$INSTANCE' not found."
+    exit 1
+fi
+
+# Load config to find paths for cache cleanup
+source "$CONFIG_FILE"
+
+# Stop and disable service
+echo "Stopping service..."
+systemctl --user stop "rclone-sync@$INSTANCE" 2>/dev/null || true
+systemctl --user disable "rclone-sync@$INSTANCE" 2>/dev/null || true
+
+# Remove config
+echo "Removing config..."
+rm -f "$CONFIG_FILE"
+
+# Clean up cache files
+if [ -n "$REMOTE_PATH" ] && [ -n "$LOCAL_DIR" ]; then
+    SAFE_REMOTE=$(echo "$REMOTE_PATH" | sed 's|/|_|g; s|:|_|g')
+    SAFE_LOCAL=$(echo "$LOCAL_DIR" | sed 's|^/||; s|/|_|g')
+    PATTERN="$SAFE_REMOTE..$SAFE_LOCAL"
+    
+    echo "Cleaning cache files matching: $PATTERN"
+    find "$CACHE_DIR" -name "${PATTERN}*" -delete 2>/dev/null || true
+fi
+
+echo ""
+echo "Instance '$INSTANCE' deleted."

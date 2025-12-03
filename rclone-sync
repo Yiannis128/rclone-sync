@@ -1,0 +1,108 @@
+#!/bin/bash
+
+usage() {
+    echo "Usage: $0 [options] REMOTE_PATH LOCAL_DIR"
+    echo "Options:"
+    echo "  -h, --help  Show this help message"
+    exit 0
+}
+
+while [[ "$1" == -* ]]; do
+    case "$1" in
+        -h|--help) usage ;;
+        *) echo "Invalid option: $1" >&2; usage ;;
+    esac
+    shift
+done
+
+if [ $# -ne 2 ]; then
+    usage
+fi
+
+# Configuration
+# Periodic sync for remote changes
+REMOTE_POLL_PERIOD=20
+# Time to wait for local batch changes before applying them
+LOCAL_BATCH_DELAY=5
+REMOTE_PATH="$1"
+LOCAL_DIR="$2"
+#	--max-delete 10
+#	--drive-use-trash=false
+RCLONE_FLAGS="--compare size,modtime,checksum
+	--resilient 
+	--recover 
+	--transfers 4 
+	--retries 5 
+	--low-level-retries 10 
+	--create-empty-src-dirs
+	--conflict-resolve newer
+	--conflict-loser pathname
+	--check-first
+	--modify-window 1s
+	--verbose"
+
+WORKDIR="$HOME/.cache/rclone/bisync"
+SAFE_REMOTE=$(echo "$REMOTE_PATH" | sed 's|/|_|g; s|:|_|g')
+SAFE_LOCAL=$(echo "$LOCAL_DIR" | sed 's|^/||; s|/|_|g')
+PATH1_LST="$WORKDIR/$SAFE_REMOTE..$SAFE_LOCAL.path1.lst"
+PATH2_LST="$WORKDIR/$SAFE_REMOTE..$SAFE_LOCAL.path2.lst"
+
+# Function to run bisync
+run_bisync() {
+    rclone bisync "$@" "$REMOTE_PATH" "$LOCAL_DIR"
+    if [ $? -eq 0 ]; then
+        echo "rclone bisync finished successfully at $(date)"
+    else
+        echo "rclone bisync failed at $(date)"
+    fi
+    echo ""
+}
+
+# Check if directory existed
+if [ -d "$LOCAL_DIR" ]; then
+    DIR_EXISTED=true
+else
+    DIR_EXISTED=false
+fi
+
+echo "Config: $RCLONE_FLAGS $REMOTE_PATH $LOCAL_DIR"
+
+mkdir -p "$LOCAL_DIR" || ( echo "Failed to create directory $LOCAL_DIR" && exit 1 )
+mkdir -p "$WORKDIR"
+
+echo "Watcher started for $LOCAL_DIR at $(date)"
+
+# Initial sync
+if [ ! -f "$PATH1_LST" ] || [ ! -f "$PATH2_LST" ] || ! $DIR_EXISTED; then
+    echo "First time detected. Running resync preferring remote."
+    run_bisync $RCLONE_FLAGS --resync --resync-mode path1
+else
+    run_bisync $RCLONE_FLAGS
+fi
+
+(while true; do
+    sleep $REMOTE_POLL_PERIOD
+    (
+        flock -n 99 || exit 1
+	echo "Remote change detected. Running rclone bisync at $(date)"
+        run_bisync $RCLONE_FLAGS
+    ) 99>/tmp/rclone_bisync_lockfile
+done) &
+remote_sync_pid=$!
+trap "echo 'Killing remote sync process'; kill $remote_sync_pid" SIGINT SIGTERM
+
+# The watching loop using inotifywait
+# -m: Monitor continuously
+# -r: Recurse into subdirectories
+# -e: Events to listen for (modify, create, delete, move)
+inotifywait -m -r -q -e modify,create,delete,move --format '%w%f' "$LOCAL_DIR" | while read -r file; do
+    # Sleep briefly to batch multiple rapid changes together
+    sleep $LOCAL_BATCH_DELAY
+    # Use flock to prevent concurrent bisync runs
+    (
+        flock -n 99 || exit 1
+	echo "Local change detected. Running rclone bisync at $(date)"
+        run_bisync $RCLONE_FLAGS
+    ) 99>/tmp/rclone_bisync_lockfile
+done
+

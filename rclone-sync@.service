@@ -1,0 +1,14 @@
+[Unit]
+Description=Rclone Sync for %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/rclone-sync/%i.conf
+ExecStart=%h/.local/bin/rclone-sync "${REMOTE_PATH}" "${LOCAL_DIR}"
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target
