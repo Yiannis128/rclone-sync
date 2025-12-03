@@ -90,19 +90,26 @@ fi
     ) 99>"$LOCKFILE"
 done) &
 remote_sync_pid=$!
-trap "echo 'Killing remote sync process'; kill $remote_sync_pid" SIGINT SIGTERM
+trap "echo 'Cleaning up...'; kill $remote_sync_pid 2>/dev/null; pkill -P $$ 2>/dev/null; rm -f '$LOCKFILE'" SIGINT SIGTERM EXIT
 
 # The watching loop using inotifywait
 # -m: Monitor continuously
 # -r: Recurse into subdirectories
 # -e: Events to listen for (modify, create, delete, move)
-inotifywait -m -r -q -e modify,create,delete,move --format '%w%f' "$LOCAL_DIR" | while read -r file; do
-    # Sleep briefly to batch multiple rapid changes together
-    sleep $LOCAL_BATCH_DELAY
-    # Use flock to prevent concurrent bisync runs
+# Simple debouncing: drain all events, wait for quiet period, then sync
+inotifywait -m -r -q -e modify,create,delete,move --format '%w%f' "$LOCAL_DIR" | while true; do
+    # Wait for first event
+    read -r file || break
+
+    # Drain additional events during batch delay (debouncing)
+    while read -r -t $LOCAL_BATCH_DELAY file; do
+        : # just drain events
+    done
+
+    # All events drained, now sync
     (
         flock -n 99 || exit 1
-	echo "Local change detected. Running rclone bisync at $(date)"
+        echo "Local changes detected. Running rclone bisync at $(date)"
         run_bisync $RCLONE_FLAGS
     ) 99>"$LOCKFILE"
 done
