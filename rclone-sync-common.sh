@@ -7,14 +7,16 @@ CACHE_DIR="$HOME/.cache/rclone/bisync"
 BIN_DIR="$HOME/.local/bin"
 SYSTEMD_DIR="$HOME/.config/systemd/user"
 
-# Function to encode paths using base64 URL-safe encoding
+# Function to encode paths to match rclone's bisync cache naming scheme
 # Sets global variables: SAFE_REMOTE, SAFE_LOCAL, PATTERN
 encode_paths() {
     local remote_path="$1"
     local local_dir="$2"
 
-    SAFE_REMOTE=$(echo -n "$remote_path" | base64 -w0 | tr '+/' '-_' | tr -d '=')
-    SAFE_LOCAL=$(echo -n "$local_dir" | base64 -w0 | tr '+/' '-_' | tr -d '=')
+    # Match rclone's cache naming: replace /, :, and spaces with _
+    SAFE_REMOTE=$(echo -n "$remote_path" | tr '/: ' '___')
+    # Strip leading / from local path, then replace /, :, and spaces with _
+    SAFE_LOCAL=$(echo -n "$local_dir" | sed 's|^/||' | tr '/: ' '___')
     PATTERN="$SAFE_REMOTE..$SAFE_LOCAL"
 }
 
